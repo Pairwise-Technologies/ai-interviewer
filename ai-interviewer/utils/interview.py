@@ -13,6 +13,7 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "settings")
 django.setup()
 from profiles.models import TalentProfile
 from jobs.models import Job
+from locations.models import Location
 from .distances import calculate_distance
 
 def conduct_interview(talent: TalentProfile, job: Job,  transcript_messages:list, conversation_history:list, client:OpenAI) -> None:
@@ -37,9 +38,12 @@ def conduct_interview(talent: TalentProfile, job: Job,  transcript_messages:list
         start_time = time.time()
         max_time = 15 * 60  # max time in seconds 
         warning_flag = False
+        relocation_flag = False
 
         job_locations = job.locations.all()  # get all job locations
         talent_locations = talent.locations.all() # get all talent location
+        curr_location = talent_locations[0].display_name if talent_locations else "Unknown" # get curr location in case of location update
+
         distances = calculate_distance(job_locations, talent_locations)
         min_dist = min(distances, key=lambda x: x[2])[2] #sort by dist, get min
 
@@ -61,11 +65,39 @@ def conduct_interview(talent: TalentProfile, job: Job,  transcript_messages:list
                 print("Goodbye!")
                 break
 
-            #ends interview if response to relocation question is no
-            if bot_reply and "open to relocating" in bot_reply.lower() and min_dist > 50:
-               if user_input.lower() in ["no", "i can't", "not willing to relocate", "nope", "not sure"]:
-                   print("Thank you for your time. Unfortunately, We cant go furthur beacause the job is not offered remotely.")
-                   break  
+            if bot_reply and ("currently located" in bot_reply.lower().strip() or "current location" in bot_reply.lower().strip()):
+                updated_location, updated_dist = process_location_update(user_input, job_locations)
+
+                if updated_location != "Invalid": 
+                    curr_location = updated_location
+                    min_dist = updated_dist
+                    print(f"updated current location to {curr_location}")
+        
+
+            if bot_reply and ("open to relocating" in bot_reply.lower().strip() or "willing to commute" in bot_reply.lower().strip()) and min_dist > 50:
+                    if user_input.lower().strip() in ["no", "i can't", "not willing to relocate", "nope", "not sure"]:
+                        reconsideration_msg = "Are you sure? This may mean you are not eligible for this position."
+                        print("Interviewer:", reconsideration_msg)
+                        update_history("assistant", conversation_history, transcript_messages, reconsideration_msg)
+                        bot_reply = reconsideration_msg
+                        relocation_flag = True
+                        continue
+
+            # ends interview if response to relocation question is no AFTER reconsidering, raises flag for hiring manager if answer changes. 
+            if relocation_flag:
+                if user_input.lower().strip() in ["yes", "yeah", "correct", "that's right"]:
+                    final_msg = "Thank you for confirming. Unfortunately, we cannot proceed further since the job requires relocation/commuting."
+                    print("Interviewer:", final_msg)
+                    bot_reply = final_msg
+                    update_history("assistant", conversation_history, transcript_messages, final_msg)
+                    write_to_transcript(talent.user.id, talent.user.first_name, messages=transcript_messages)
+                    return
+                elif user_input.lower().strip() in ["no", "actually, i can", "i changed my mind"]:
+                    confirmation_msg = "Thanks for clarifying! Let's move on."
+                    print("Interviewer:", confirmation_msg)
+                    update_history("assistant", conversation_history, transcript_messages, confirmation_msg)
+                    bot_reply = confirmation_msg
+                    print(bot_reply.lower())
 
             update_history("user", conversation_history, transcript_messages, user_input)
             
@@ -95,3 +127,47 @@ def conduct_interview(talent: TalentProfile, job: Job,  transcript_messages:list
 
             except Exception as e:
                 print("Error communicating with OpenAI API:", str(e))
+
+
+def process_location_update(user_input: str, job_locations: list) -> tuple[str, float]:
+    """
+    Processes user's location response update during interview
+
+    Inputs:
+        user_input (str): location provided by user
+        job_locations (list): list of job location objects
+
+    Returns:
+        tuple:
+            - (str) Updated location or "Invalid" if ignored
+            - (float) Updated min distance or set to float("inf") if unknown
+    """
+
+    user_input = user_input.strip().lower()
+
+    # ignore invalid location responses
+    INVALID_RESPONSES = {"no", "not sure", "maybe", "i don't know", "n/a"}
+
+    if user_input in INVALID_RESPONSES:
+        return "Invalid", None 
+
+    matching_location = Location.objects.filter(label__iexact=user_input).first()
+    
+    if matching_location and matching_location.details:
+        updated_lat = matching_location.details.latitude
+        updated_lon = matching_location.details.longitude
+        print(f"found existing location in database: {matching_location.display_name} ({updated_lat}, {updated_lon})") # remove later
+    
+        updated_distances = calculate_distance(job_locations, [matching_location])
+
+        if updated_distances: 
+            min_dist = min(updated_distances, key=lambda x: x[2])[2]  
+            print(f"updated min_dist to {min_dist}") # remove later
+        else:
+            min_dist = float("inf")
+
+        return matching_location.display_name, min_dist
+
+    else:
+        print(f"{user_input} not found in database, defaulting to unknown location")
+        return "Unknown", float("inf")
