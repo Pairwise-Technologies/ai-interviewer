@@ -1,0 +1,13 @@
+services:
+  develop: &develop
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./apps:/app/apps
+      - ./ai-interviewer:/app/ai-interviewer
+      - ./db.sqlite3:/app/db.sqlite3
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env

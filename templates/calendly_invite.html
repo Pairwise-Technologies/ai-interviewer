@@ -1,0 +1,48 @@
+<html>
+  <body style="margin: 0; padding: 0; background-color: #f4f4f4; font-family: Arial, sans-serif;">
+
+    <div style="padding: 30px 15px;">
+
+      <!-- Card Container -->
+      <div style="
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        overflow: hidden;
+        box-sizing: border-box;
+      ">
+
+        <!-- pairwise banner-->
+        <img src="https://i.imgur.com/98l938x.jpeg" alt="Company Logo"
+             style="width: 100%; display: block;">
+
+        <!-- Email Content -->
+        <div style="padding: 20px;">
+          <p>Hi {{ name }},</p>
+          <p>
+            Thanks for your interest in the {{ job }} position.<br>
+            Please schedule your screening interview with Pairwise on Calendly using the link below:
+          </p>
+          <p style="text-align: center;">
+            <a href="{{ link }}" style="
+              background-color: #3f37b8;
+              color: white;
+              padding: 12px 24px;
+              text-decoration: none;
+              border-radius: 5px;
+              display: inline-block;
+              font-size: 16px;
+            ">
+              Schedule Now
+            </a>
+          </p>
+          <p>Best,<br>Pairwise AI</p>
+        </div>
+
+      </div>
+    </div>
+
+  </body>
+</html>

@@ -19,7 +19,6 @@ lib64/
 parts/
 sdist/
 var/
-static/
 wheels/
 share/python-wheels/
 *.egg-info/
@@ -158,3 +157,5 @@ db.sqlite3
 node_modules
 .DS_Store
 static/index-bundle.js
+transcript.json
+transcript.txt
